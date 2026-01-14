@@ -1,57 +1,56 @@
-from flask import Flask, render_template, request
-import os 
+from flask import Flask, request, jsonify
 import numpy as np
-import pandas as pd
 from src.mlProject.pipeline.prediction import PredictionPipeline
+from flask_cors import CORS
+
+app = Flask(__name__)
+CORS(app)   # IMPORTANT for Vercel frontend
+
+# Health check (optional but recommended)
+@app.route("/", methods=["GET"])
+def health():
+    return jsonify({
+        "status": "ok",
+        "message": "Wine Quality API is running"
+    })
 
 
-app = Flask(__name__) # initializing a flask app
+# Prediction API
+@app.route("/predict", methods=["POST"])
+def predict():
+    try:
+        data = request.get_json()
 
-@app.route('/',methods=['GET'])  # route to display the home page
-def homePage():
-    return render_template("index.html")
+        features = [
+            float(data["fixed_acidity"]),
+            float(data["volatile_acidity"]),
+            float(data["citric_acid"]),
+            float(data["residual_sugar"]),
+            float(data["chlorides"]),
+            float(data["free_sulfur_dioxide"]),
+            float(data["total_sulfur_dioxide"]),
+            float(data["density"]),
+            float(data["pH"]),
+            float(data["sulphates"]),
+            float(data["alcohol"]),
+        ]
 
+        features = np.array(features).reshape(1, 11)
 
-@app.route('/train',methods=['GET'])  # route to train the pipeline
-def training():
-    os.system("python main.py")
-    return "Training Successful!" 
+        model = PredictionPipeline()
+        prediction = model.predict(features)
 
+        return jsonify({
+            "success": True,
+            "prediction": int(prediction[0])
+        })
 
-@app.route('/predict',methods=['POST','GET']) # route to show the predictions in a web UI
-def index():
-    if request.method == 'POST':
-        try:
-            #  reading the inputs given by the user
-            fixed_acidity =float(request.form['fixed_acidity'])
-            volatile_acidity =float(request.form['volatile_acidity'])
-            citric_acid =float(request.form['citric_acid'])
-            residual_sugar =float(request.form['residual_sugar'])
-            chlorides =float(request.form['chlorides'])
-            free_sulfur_dioxide =float(request.form['free_sulfur_dioxide'])
-            total_sulfur_dioxide =float(request.form['total_sulfur_dioxide'])
-            density =float(request.form['density'])
-            pH =float(request.form['pH'])
-            sulphates =float(request.form['sulphates'])
-            alcohol =float(request.form['alcohol'])
-       
-         
-            data = [fixed_acidity,volatile_acidity,citric_acid,residual_sugar,chlorides,free_sulfur_dioxide,total_sulfur_dioxide,density,pH,sulphates,alcohol]
-            data = np.array(data).reshape(1, 11)
-            
-            obj = PredictionPipeline()
-            predict = obj.predict(data)
-
-            return render_template('results.html', prediction = str(predict))
-
-        except Exception as e:
-            print('The Exception message is: ',e)
-            return 'something is wrong'
-
-    else:
-        return render_template('index.html')
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
 
 
 if __name__ == "__main__":
-	# app.run(host="0.0.0.0", port = 8080, debug=True)
-	app.run(host="0.0.0.0", port = 8080)
+    app.run()
